@@ -1,0 +1,38 @@
+import org.apache.spark.sql.SparkSession
+import org.apache.spark.ml.regression.LinearRegressionModel
+import org.apache.spark.ml.feature.VectorAssembler
+
+object TestWineQuality {
+  def main(args: Array[String]): Unit = {
+    val spark = SparkSession.builder()
+      .appName("Test Wine Quality Model")
+      .getOrCreate()
+
+    // Загрузка обученной модели
+    val model = LinearRegressionModel.load("path_to_save_model")
+
+    // Загрузка данных
+    val rawData = spark.read
+      .option("header", "true")
+      .option("inferSchema", "true")
+      .option("sep", ";")
+      .csv("https://archive.ics.uci.edu/ml/machine-learning-databases/wine-quality/winequality-red.csv")
+
+    // Подготовка данных
+    val assembler = new VectorAssembler()
+      .setInputCols(Array("fixed_acidity", "volatile_acidity", "citric_acid", "residual_sugar", "chlorides", "free_sulfur_dioxide", "total_sulfur_dioxide", "density", "pH", "sulphates", "alcohol"))
+      .setOutputCol("features")
+
+    val data = assembler.transform(rawData)
+      .select(col("quality").cast("double").as("label"), col("features"))
+
+    // Разделение данных на тестовую выборку
+    val Array(_, testData) = data.randomSplit(Array(0.8, 0.2))
+
+    // Предсказания
+    val predictions = model.transform(testData)
+    predictions.select("prediction", "label", "features").show()
+
+    spark.stop()
+  }
+}
